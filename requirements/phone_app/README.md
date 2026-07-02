@@ -41,8 +41,6 @@ Tradeoffs:
 
 ## Future Questions
 
-- Should transcription happen before the user saves, after save, or only on desktop?
-- Should the app support manual text-only notes as well as voice captures?
-- Should the app show capture statuses like local, synced, processed, and failed?
 - How should the phone pair with the desktop companion?
 - What should happen if the same capture is edited on phone after it already synced?
+  - Current answer: the phone app should not allow editing a capture after it has synced. For this iteration, synced captures are read-only on the phone.

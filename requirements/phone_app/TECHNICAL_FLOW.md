@@ -4,6 +4,10 @@ This document captures the technical flow implied by the phone app diary and UI 
 
 The current decision is that the phone app transcribes audio locally and persists only text plus minimal metadata. The desktop companion receives text captures, not audio files.
 
+The current app framework decision is **React Native with Expo**. Details live in `APP_FRAMEWORK.md`.
+
+A high-level Mermaid diagram of the app moving pieces lives in `HIGH_LEVEL_APP_FLOW.md`.
+
 ## System Boundary
 
 The phone app owns:
@@ -30,16 +34,17 @@ Those responsibilities belong to the desktop companion.
 ## High-Level Pipeline
 
 1. User records audio in the current note.
-2. The app stores audio as temporary working data.
-3. A local transcription model converts audio to text.
-4. The transcript is inserted into the current note text.
-5. The app saves the text note locally.
-6. The app discards temporary audio after successful transcription and save.
-7. The note enters or remains in the sync queue.
-8. When the desktop companion is reachable, the phone sends text plus metadata.
-9. The desktop companion acknowledges successful receipt.
-10. The phone marks the note as synced.
-11. The user may delete synced notes from the phone.
+2. When recording stops, the app stores that audio segment as temporary working data and adds it to a local transcription queue.
+3. The microphone returns to an available state so the user can record another segment immediately.
+4. A local transcription worker processes queued audio segments in the background.
+5. As each segment finishes, the transcript is inserted into the correct note position.
+6. The app saves the updated text note locally.
+7. The app discards that segment's temporary audio after successful transcription insertion and save.
+8. The note enters or remains in the sync queue.
+9. When the desktop companion is reachable, the phone sends text plus metadata.
+10. The desktop companion acknowledges successful receipt.
+11. The phone marks the note as synced.
+12. The user may delete synced notes from the phone.
 
 ## Local Note Lifecycle
 
@@ -53,6 +58,8 @@ Suggested lifecycle states:
 
 The app should treat all non-deleted notes as locally safe. Failed sync should not imply data loss.
 
+For this iteration, synced notes are read-only on the phone. The app should allow local editing before handoff, but once the desktop companion acknowledges a capture, the phone should not permit further edits to that capture. This avoids conflict-resolution requirements between phone edits and desktop-side processing.
+
 ## Recording Session Lifecycle
 
 Recording is separate from note persistence.
@@ -61,21 +68,60 @@ Suggested recording states:
 
 - **Idle**: no active recording.
 - **Recording**: audio is being captured.
-- **Transcribing**: audio has stopped and the local model is producing text.
-- **Transcript inserted**: text has been added to the note.
-- **Temporary audio discarded**: the app has removed the transient audio data.
+- **Segment queued**: audio has stopped, the segment has been saved as temporary working data, and transcription has been queued.
+- **Ready for next recording**: the app is not actively recording, even if one or more earlier segments are still transcribing.
 
-A note may move through this recording lifecycle multiple times. Each recording segment can append text or insert text at the current cursor position.
+A note may move through this recording lifecycle multiple times. Each recording segment can append text or insert text at the cursor position captured for that segment.
+
+Transcription has its own background segment lifecycle:
+
+- **Queued**: the audio segment is waiting for local transcription.
+- **Transcribing**: the local model is producing text for that segment.
+- **Transcript inserted**: text has been added to the note.
+- **Temporary audio discarded**: the app has removed the transient audio data for that segment.
+- **Transcription failed**: the segment remains available for retry or explicit user recovery until the failure policy is resolved.
+
+The recording lifecycle must not block on the transcription lifecycle. After the user stops a recording, transcription should begin as soon as practical, but the user should still be able to record additional segments while earlier segments are queued or processing.
+
+## Transcription Queue
+
+The app should maintain a local queue of audio segments waiting for transcription.
+
+Queue requirements:
+
+- Each stopped recording creates one transcription job.
+- Each job belongs to a note and stores the intended insertion target for its transcript.
+- Jobs should be processed in capture order for a given note unless the app has a stronger reason to reorder them.
+- The queue should survive normal app backgrounding.
+- The queue may hold temporary audio until the segment is transcribed, inserted, and saved.
+- The user should be able to keep recording new segments while queued jobs are pending.
+- A slow local model should degrade transcript availability, not recording availability.
+
+Suggested transcription job fields:
+
+- `id`
+- `note_id`
+- `created_at`
+- `audio_temp_uri`
+- `status`
+- `insertion_target`
+- `capture_sequence`
+- `model_id`
+- `language`
+- `error_message`, optional
+
+Open details still need to be decided, including how many jobs can process concurrently, how retry should work, and how the UI should show pending transcript segments.
 
 ## Text Insertion Rules
 
 When a transcript segment completes:
 
-- If the user has an active cursor position, insert the transcript there.
-- If the user has selected text, replace the selection with the transcript.
-- If there is no reliable cursor position, append the transcript to the end.
+- If the segment captured an active cursor position, insert the transcript there.
+- If the segment captured a selected text range, replace that selection with the transcript if the range is still valid.
+- If the original insertion target is no longer reliable because the user edited the note, append the transcript to the end or insert at the nearest safe position.
+- If there is no reliable insertion target, append the transcript to the end.
 
-The app should preserve enough editor state to make voice insertion predictable, especially after the user taps into the middle of a note.
+The app should preserve enough editor state per queued segment to make voice insertion predictable, especially after the user taps into the middle of a note. Because transcription can complete after later edits or recordings, insertion should prefer data safety and understandable ordering over perfect cursor reconstruction.
 
 ## Local Persistence
 
@@ -111,6 +157,7 @@ Expected behavior:
 
 - Audio is captured to a temporary location or in-memory buffer.
 - Audio may be chunked if the transcription engine benefits from streaming or segment-based processing.
+- Audio for each stopped segment may remain temporarily while its transcription job is queued or processing.
 - Audio should be deleted after its transcript segment has been inserted and saved.
 - Audio should not appear in the sync payload.
 - Audio should not remain after the app is closed except where unavoidable due to crash recovery.
@@ -119,17 +166,20 @@ Crash recovery policy still needs to be designed. One possible approach is to ke
 
 ## Transcription
 
-The app should use an on-device model for transcription.
+The app should use an on-device model for transcription. Detailed transcription requirements live in `TRANSCRIPTION_REQUIREMENTS.md`.
 
 Planning requirements:
 
 - It should work without network access.
 - It should be fast enough for short voice notes.
 - It should support repeated pause/resume recording within one note.
+- It should support queued, segment-based transcription so recording can resume before earlier segments finish processing.
+- It should use Voice Activity Detection before speech-to-text so long pauses and no-speech segments do not become invented transcript text.
+- It should treat no-speech segments as successful empty outcomes, not transcription failures.
 - It should provide enough confidence in the transcript that audio retention is not required for v1.
 - It should expose failure states that the UI can communicate simply.
 
-Technology choices are still open. Candidate areas to research later include mobile speech APIs, local Whisper-family runtimes, platform-native transcription, and cross-platform wrappers.
+For v1 planning, prefer a VAD-first Whisper-family pipeline. `whisper.cpp` with Silero VAD is the leading candidate unless implementation research shows a materially simpler or more reliable option for the chosen app framework.
 
 ## Sync Handoff
 
@@ -205,23 +255,29 @@ User-facing principles:
 - A failed transcription should preserve whatever text is already available.
 - If temporary audio exists after a failure, the app should either retry transcription or clearly explain that the note has not yet been converted.
 - The user should be able to continue editing text notes even while disconnected.
+- The user should be able to edit unsynced notes, but synced notes should be presented as read-only on the phone for this iteration.
 
 ## Open Technical Questions
 
-- Which app framework should be used?
 - Which local transcription engine should be used?
-- Should transcription be streaming, segment-based, or both?
+- Should transcription be queued segment-based only, or should it also support streaming partial transcripts while recording?
+- How many transcription jobs should process concurrently?
+- How should the UI represent transcript segments that are still queued or processing?
 - How should temporary audio be stored during active transcription?
 - What is the crash recovery policy for temporary audio?
 - What local database or storage layer should hold notes?
 - How should sync discovery, pairing, authentication, and retry behavior work?
 - Should the desktop acknowledgement mean "received" or "processed"?
-- How should edits to an already-synced note be handled?
+- Should a future version support post-sync amendments from the phone, and if so, how should those be represented on the desktop?
 
 ## Current Technical Decision
 
 For v1 planning, assume:
 
+- React Native with Expo as the app framework.
+- Expo Go may be used only for early UI/simple API exploration.
+- Expo development builds are the expected main development environment once native audio/transcription integration begins.
+- production builds should remain possible for Android APK, Google Play, TestFlight, and App Store distribution.
 - on-phone transcription.
 - text-only saved notes.
 - text-only desktop sync.
@@ -229,3 +285,4 @@ For v1 planning, assume:
 - no required organization metadata.
 - no `user_edited` metadata field.
 - temporary audio may exist only as working data during recording/transcription.
+- synced notes are read-only on the phone.
