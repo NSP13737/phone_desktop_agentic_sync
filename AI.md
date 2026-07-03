@@ -5,3 +5,19 @@ The goal is to create a simple tool for an individual rather than a polished pro
 Requirements live in the requirements dir. These should be held as ground truth. If you are deciding about something to implement and it is not in a requirements doc, you should first consult the user. If you change something with the user, you should update the proper requirements doc.
 
 If the requirements are not specific enough or are getting too long, maybe it is time to make a new requirements file/sub-file
+
+While implementing, please update `IMPLEMENTATION_PROGRESS.md` so that future agents know what has happened. Be very high level in your writing here, as there may be dozens of agents that write to this file, and it should just allow them to search where necessary instead of having to read every file.
+
+
+## Sandbox Notes
+
+If a normal workspace command fails with:
+
+`bwrap: Can't find source path /home/agent/obsidian_notetaker: Permission denied`
+
+the sandbox wrapper may be failing to mount the workspace. Retry the same read/write command with escalation and explain that the command is still scoped to the repo.
+
+For Git commands under escalation, Git may report dubious ownership. Use a per-command safe directory override instead of changing global config:
+
+`git -c safe.directory=/home/agent/obsidian_notetaker status --short`
+`git -c safe.directory=/home/agent/obsidian_notetaker diff -- <paths>`

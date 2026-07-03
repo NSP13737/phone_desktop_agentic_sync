@@ -1,5 +1,9 @@
 # Phone App
 
+## Agent Start Here
+
+Agents implementing phone app work should read `IMPLEMENTATION_GUIDE.md` first. It summarizes the v1 component structure, current decisions, implementation boundaries, and the reading order for the deeper requirement documents.
+
 ## Role
 
 The phone app is the low-friction capture surface. It should let the user speak naturally, save the capture safely, and sync it to the desktop companion later.
@@ -21,26 +25,19 @@ The phone app should not try to be a full Obsidian client or a heavy agentic too
 - Most organization should happen later on the desktop.
 - The phone may support lightweight metadata eventually, but metadata should not be required for ordinary capture.
 - The app should avoid complex setup and avoid requiring an always-online desktop.
+- Pairing with the desktop companion is specified in `PAIRING_REQUIREMENTS.md`.
 
-## Audio Storage Question
+## Audio Storage Decision
 
-This is a major unresolved design choice.
+For v1, audio is temporary working data, not durable user data.
 
-Options to explore:
+The phone app records audio locally, queues it for on-device transcription, saves the resulting text note, and then deletes the temporary audio after the transcript has been inserted and the note has been saved. Audio is not synced to the desktop companion.
 
-- Store and sync audio files.
-- Store audio temporarily, transcribe on phone, then sync only text.
-- Store only text/transcripts and discard audio quickly.
-- Let the user configure retention, such as keep audio for 24 hours or until desktop confirms processing.
+Temporary audio may remain on the device only while recording, while waiting for transcription, while transcription is running, or while recovering from an interrupted transcription job. If transcription completes with no speech detected, the temporary audio should also be deleted after that outcome is safely recorded.
 
-Tradeoffs:
-
-- Keeping audio preserves nuance and allows re-transcription if the first transcript is wrong.
-- Keeping audio increases local storage, file count, sync time, desktop processing complexity, and privacy exposure.
-- Sending only text makes syncing simpler but may lose information if transcription is poor.
+Saved captures are text plus minimal metadata. The desktop companion receives text captures, not audio files.
 
 ## Future Questions
 
-- How should the phone pair with the desktop companion?
 - What should happen if the same capture is edited on phone after it already synced?
   - Current answer: the phone app should not allow editing a capture after it has synced. For this iteration, synced captures are read-only on the phone.

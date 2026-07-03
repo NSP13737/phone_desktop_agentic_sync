@@ -14,9 +14,10 @@ For v1 planning, assume:
 - transcription jobs are processed in the background.
 - the microphone becomes available again immediately after the user stops recording.
 - the transcription pipeline uses Voice Activity Detection before speech-to-text.
-- Whisper-family local transcription remains the default candidate, with `whisper.cpp` as the leading implementation candidate.
+- Whisper-family local transcription remains the default candidate, with `whisper.cpp` as the leading underlying implementation candidate.
+- Because the app framework is React Native with Expo, the first implementation spike should evaluate `whisper.rn` in an Expo development build.
 
-This document does not decide the full app framework. If the app framework changes, the transcription implementation may use a wrapper around the same underlying approach.
+The app framework decision lives in `APP_FRAMEWORK.md`. If the app framework changes later, the transcription implementation may use a wrapper around the same underlying approach.
 
 ## Why VAD Is Required
 
@@ -50,7 +51,7 @@ Voice Activity Detection, or VAD, should run before transcription. VAD identifie
 
 ## Engine Recommendation
 
-The leading candidate is `whisper.cpp` with VAD enabled.
+The leading underlying candidate is `whisper.cpp` with VAD enabled.
 
 Reasons:
 
@@ -60,9 +61,25 @@ Reasons:
 - It includes VAD support, including Silero VAD.
 - It keeps the local/offline transcription story simple.
 
-If the app uses React Native, `whisper.rn` should be evaluated as a wrapper candidate because it exposes Whisper and VAD functionality to React Native apps. The underlying requirement should still be treated as VAD-first local transcription, not as a commitment to a specific wrapper.
+For the v1 Expo app, evaluate `whisper.rn` first because it exposes Whisper and VAD functionality to React Native apps. Treat this as an implementation spike: a small proof that audio recorded on a real phone can be transcribed locally through the selected wrapper before the rest of the UI is built around it.
+
+If `whisper.rn` cannot meet the project needs in an Expo development build, keep the underlying requirement as VAD-first local transcription and evaluate a different wrapper or native module path.
 
 Alternative engines may be evaluated later, especially `sherpa-onnx`, but a replacement should beat the Whisper plus VAD approach on simplicity, credibility, local operation, mobile support, and implementation effort.
+
+## Spike-First Requirement
+
+The initial MVP implementation should start with a transcription spike before building the full app around the transcription layer.
+
+The spike must verify:
+
+- audio can be recorded on a physical phone from the Expo development build.
+- the recorded audio can be saved as temporary working data.
+- local VAD-first transcription can run through `whisper.rn` or the selected wrapper.
+- the transcript can be inserted into local text state.
+- temporary audio can be deleted after the transcript is safely available.
+
+If the spike fails, choose and document a replacement transcription path before continuing with the full MVP implementation.
 
 ## VAD Requirements
 
@@ -191,7 +208,13 @@ Requirements:
 - Do not include audio in sync payloads.
 - Do not expose audio as a saved note attachment in v1.
 
-Crash recovery policy is still open. The likely direction is to keep temporary audio only long enough to retry unfinished jobs after restart, then delete it after success, no-speech completion, or unrecoverable failure handling.
+Crash recovery policy:
+
+- The app should persist the transcription job and temporary audio URI before processing starts.
+- On app startup, queued or interrupted jobs may retry if their temporary audio still exists.
+- Temporary audio should be deleted after success, after a completed no-speech outcome, or after the app records that the job is unrecoverable.
+- If the temporary audio is missing or unreadable, the app should mark the segment failed and explain that it could not be converted.
+- Do not keep temporary audio after transcription solely for review, sync, or archival purposes.
 
 ## Failure Handling
 
@@ -225,15 +248,13 @@ These are references for implementation research, not permanent product dependen
 
 ## Open Questions
 
-- Which app framework will host the transcription engine?
 - Which exact Whisper model size should be the v1 default?
 - Should v1 be English-only or multilingual?
 - How aggressive should VAD be about trimming pauses?
 - Should the app show pending placeholders inline, or only a subtle processing indicator?
-- How long should temporary audio survive after an unrecoverable transcription failure?
 - Should users have a setting to disable VAD if it cuts off quiet speech?
 - What test audio set should be used to validate silence, pauses, quiet speech, and noisy rooms?
 
 ## Current Planning Assumption
 
-For v1 planning, use a VAD-first, queued, segment-based local transcription pipeline. Prefer `whisper.cpp` with Silero VAD unless implementation research shows a materially simpler or more reliable alternative for the chosen app framework.
+For v1 planning, use a VAD-first, queued, segment-based local transcription pipeline. Prefer `whisper.cpp` with Silero VAD as the underlying approach, and evaluate `whisper.rn` first as the React Native/Expo integration path unless implementation research shows a materially simpler or more reliable option.

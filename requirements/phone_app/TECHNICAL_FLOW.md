@@ -8,6 +8,8 @@ The current app framework decision is **React Native with Expo**. Details live i
 
 A high-level Mermaid diagram of the app moving pieces lives in `HIGH_LEVEL_APP_FLOW.md`.
 
+Pairing and future desktop discovery requirements live in `PAIRING_REQUIREMENTS.md`.
+
 ## System Boundary
 
 The phone app owns:
@@ -79,7 +81,7 @@ Transcription has its own background segment lifecycle:
 - **Transcribing**: the local model is producing text for that segment.
 - **Transcript inserted**: text has been added to the note.
 - **Temporary audio discarded**: the app has removed the transient audio data for that segment.
-- **Transcription failed**: the segment remains available for retry or explicit user recovery until the failure policy is resolved.
+- **Transcription failed**: the segment remains available for retry or explicit user recovery when the temporary audio still exists; otherwise the job records an unrecoverable failure.
 
 The recording lifecycle must not block on the transcription lifecycle. After the user stops a recording, transcription should begin as soon as practical, but the user should still be able to record additional segments while earlier segments are queued or processing.
 
@@ -110,7 +112,9 @@ Suggested transcription job fields:
 - `language`
 - `error_message`, optional
 
-Open details still need to be decided, including how many jobs can process concurrently, how retry should work, and how the UI should show pending transcript segments.
+For v1, process one transcription job at a time. This keeps CPU, battery, and native transcription integration simpler while preserving the important user experience: the microphone becomes available again as soon as a stopped segment has been queued.
+
+If transcription fails and the temporary audio still exists, keep the job available for retry. Failed jobs should not block later recordings.
 
 ## Text Insertion Rules
 
@@ -134,6 +138,10 @@ The app should persist the note frequently:
 - when the app backgrounds, when possible.
 
 The saved object should be text-first and small enough to sync cheaply.
+
+For v1, use SQLite for ordinary app data: local notes, sync status, transcription jobs, and non-secret pairing metadata such as last known host and port. Use Expo SQLite or the closest maintained SQLite package that works well with the selected Expo development build.
+
+Use secure device storage, such as Expo SecureStore, only for sensitive pairing credentials and tokens. Do not store sync credentials in the ordinary note database.
 
 Suggested fields:
 
@@ -160,13 +168,22 @@ Expected behavior:
 - Audio for each stopped segment may remain temporarily while its transcription job is queued or processing.
 - Audio should be deleted after its transcript segment has been inserted and saved.
 - Audio should not appear in the sync payload.
-- Audio should not remain after the app is closed except where unavoidable due to crash recovery.
+- Audio may remain after the app is closed only when needed to recover an unfinished transcription job.
 
-Crash recovery policy still needs to be designed. One possible approach is to keep temporary audio only long enough to recover from an interrupted transcription, then delete it after the next successful app startup cleanup.
+Crash recovery policy:
+
+- Persist transcription jobs and their temporary audio URI before starting transcription.
+- On app startup, retry queued or interrupted jobs whose audio file still exists.
+- Delete temporary audio after transcript insertion and local note save.
+- Delete temporary audio after a completed no-speech outcome.
+- If a job is unrecoverable because the audio file is missing or unreadable, mark the job failed and explain that the segment could not be converted.
+- Do not keep temporary audio only for archival, review, or desktop sync.
 
 ## Transcription
 
 The app should use an on-device model for transcription. Detailed transcription requirements live in `TRANSCRIPTION_REQUIREMENTS.md`.
+
+During initial MVP implementation, build and verify the transcription spike before building the full MVP around the transcription layer. The spike should run in an Expo development build on a physical device and prove that recorded audio can pass through local VAD-first transcription, update local text state, and release temporary audio safely.
 
 Planning requirements:
 
@@ -179,7 +196,7 @@ Planning requirements:
 - It should provide enough confidence in the transcript that audio retention is not required for v1.
 - It should expose failure states that the UI can communicate simply.
 
-For v1 planning, prefer a VAD-first Whisper-family pipeline. `whisper.cpp` with Silero VAD is the leading candidate unless implementation research shows a materially simpler or more reliable option for the chosen app framework.
+For v1 planning, prefer a VAD-first Whisper-family pipeline. `whisper.cpp` with Silero VAD is the leading underlying candidate. Because the app framework is React Native with Expo, the first implementation spike should evaluate `whisper.rn` in an Expo development build as the practical wrapper candidate.
 
 ## Sync Handoff
 
@@ -204,11 +221,15 @@ A likely payload shape:
 
 The desktop companion should return an acknowledgement that lets the phone mark the note as synced.
 
-The acknowledgement should distinguish "received by desktop" from "fully processed into Obsidian" if those become separate states. For the phone app v1, `synced` means handed off to the desktop companion.
+For v1, the acknowledgement means "received and durably accepted by the desktop companion." It does not mean the desktop has finished routing, interpreting, or writing the note into Obsidian. The phone app should mark a note as `synced` after this desktop receipt acknowledgement.
+
+The sync request should use JSON over local HTTP. The phone authenticates future sync requests with the stored sync token from pairing, sent as a bearer token or equivalent simple authorization header. The desktop must verify the token and the paired device identity before accepting a capture.
 
 ## Connection Awareness
 
 The phone app needs a lightweight way to know whether the desktop companion is reachable.
+
+Pairing, trust, discovery, IP address changes, and manual recovery are specified in `PAIRING_REQUIREMENTS.md`.
 
 The UI needs:
 
@@ -218,11 +239,16 @@ The UI needs:
 
 Technical questions for later:
 
-- How does the phone discover the desktop companion?
-- Does pairing happen through local network discovery, QR code, manual address entry, or another mechanism?
-- Does sync require both devices to be on the same local network?
-- How are authentication and trust handled?
-- How are retries scheduled?
+- Whether local service discovery should be added after the MVP last-known-address flow.
+
+For v1, retry sync:
+
+- when the app starts or returns to foreground.
+- after a successful pairing.
+- when the user opens settings or manually requests sync.
+- after a failed attempt using a conservative backoff while the app is active.
+
+Failed sync should leave notes queued locally.
 
 ## Delete Synced Notes
 
@@ -259,16 +285,10 @@ User-facing principles:
 
 ## Open Technical Questions
 
-- Which local transcription engine should be used?
-- Should transcription be queued segment-based only, or should it also support streaming partial transcripts while recording?
-- How many transcription jobs should process concurrently?
-- How should the UI represent transcript segments that are still queued or processing?
-- How should temporary audio be stored during active transcription?
-- What is the crash recovery policy for temporary audio?
-- What local database or storage layer should hold notes?
-- How should sync discovery, pairing, authentication, and retry behavior work?
-- Should the desktop acknowledgement mean "received" or "processed"?
 - Should a future version support post-sync amendments from the phone, and if so, how should those be represented on the desktop?
+- Should a future version add streaming partial transcripts while recording?
+- Should a future version add local service discovery, or is last-known address plus manual recovery enough?
+- Should a future version support configurable audio retention, such as keeping audio for a short review window?
 
 ## Current Technical Decision
 
@@ -279,10 +299,18 @@ For v1 planning, assume:
 - Expo development builds are the expected main development environment once native audio/transcription integration begins.
 - production builds should remain possible for Android APK, Google Play, TestFlight, and App Store distribution.
 - on-phone transcription.
+- a first transcription feasibility spike using `whisper.rn` in an Expo development build.
+- SQLite for ordinary local app data.
+- secure device storage for pairing secrets and sync tokens.
 - text-only saved notes.
 - text-only desktop sync.
+- actual QR-code local pairing for the MVP, with stored future-sync credentials.
+- JSON QR payloads.
+- JSON sync requests over local HTTP.
+- simple bearer-token-style sync authentication for the MVP.
+- desktop acknowledgement means "received and durably accepted by the desktop companion."
 - optional title.
 - no required organization metadata.
 - no `user_edited` metadata field.
-- temporary audio may exist only as working data during recording/transcription.
+- temporary audio may exist only as working data during recording, transcription, retry, or crash recovery.
 - synced notes are read-only on the phone.

@@ -16,15 +16,20 @@ flowchart LR
         transcriptionEngine[On-Device Transcription]
         noteStore[Local Text Note Store]
         syncQueue[Sync Queue]
+        pairing[Pairing State]
         syncClient[Desktop Sync Client]
     end
 
     subgraph desktop[Desktop Companion]
+        pairingEndpoint[Pairing Endpoint]
         receiver[Sync Receiver]
         other[Other functionality]
     end
 
     user -->|record or edit note| ui
+    user -->|scan desktop QR code| pairing
+    pairing -->|store trusted desktop identity| syncClient
+    pairingEndpoint -->|pairing payload via QR| pairing
     ui -->|start and stop recording| recorder
     recorder -->|stopped audio segment| tempAudio
     tempAudio -->|queue segment| transcriptionQueue
@@ -47,5 +52,6 @@ flowchart LR
 - The phone app owns capture, temporary audio handling, on-device transcription, local text storage, and sync queueing.
 - Audio is temporary working data. The sync handoff sends text and metadata only.
 - Recording should become available again after a segment is queued, even if transcription is still running.
+- Pairing is a one-time trust bootstrap. Future sync uses stored pairing credentials and must handle desktop IP address changes.
 - The desktop companion owns receipt, processing, and eventual placement into the Obsidian vault.
 - The phone marks a note as synced after the desktop companion acknowledges receipt.

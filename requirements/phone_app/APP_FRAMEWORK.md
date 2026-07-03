@@ -103,17 +103,3 @@ Before committing deeply to the UI, run a small feasibility spike that verifies:
 - temporary audio can be deleted after successful transcription.
 
 If iOS support remains a serious target, the same spike should later be repeated on a physical iOS device.
-
-## Alternatives Considered
-
-### Flutter
-
-Flutter remains the strongest alternative. It also supports Android and iOS from one codebase and has strong UI consistency. It was not chosen for v1 because it would add Dart as a separate ecosystem, while React Native/Expo is likely to fit better with a TypeScript-friendly personal tool stack.
-
-### Capacitor / Ionic
-
-Capacitor would be attractive for a simple web-style CRUD app, but this project's local audio handling, temporary files, background queueing, and on-device transcription make a web-wrapper approach less appealing.
-
-### Native Android And Native iOS
-
-Separate native apps would give maximum platform control, but they conflict with the requirement to avoid multiple app frameworks and would add unnecessary maintenance for a personal tool.
