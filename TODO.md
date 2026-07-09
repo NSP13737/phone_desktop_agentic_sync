@@ -10,9 +10,9 @@ The desktop companion should infer where captured notes belong, process them aut
 
 ## High-Level Decisions
 
-- The phone app should prioritize fast voice capture over organization.
+- The phone app should prioritize fast typed capture over organization.
 - The desktop companion should own the smart logic, including interpretation, categorization, Obsidian writing, and Git integration.
-- The system should feel transparent and safe: the user should not fear losing recordings or notes.
+- The system should feel transparent and safe: the user should not fear losing notes.
 - Sync should be reliable but not attention-seeking. The user should be able to trust that captures are queued locally and eventually handed off.
 - Notes that cannot be confidently categorized should go to a separate needs-review area, not to a generic miscellaneous folder.
 - A miscellaneous destination should remain available for notes the user intentionally wants stored there.
@@ -21,8 +21,6 @@ The desktop companion should infer where captured notes belong, process them aut
 
 ## Open Questions
 
-- Decide whether the phone should store original audio files, only transcripts/text, or both temporarily.
-- Decide where transcription happens: on phone, on desktop, or through a configurable provider.
 - Decide how the phone indicates uncertainty or user intent without adding capture friction.
 - Decide how much of the desktop companion should be a GUI versus a background service plus status window.
 - Decide how Git commits should be grouped: one commit per processed batch, one commit per note, or one commit per agent run.
@@ -31,17 +29,15 @@ The desktop companion should infer where captured notes belong, process them aut
 
 ## Usability Holes To Explore
 
-- Requiring the user to say the destination during capture may create too much friction. The system should allow natural speech first and infer routing later.
+- Requiring the user to specify the destination during capture may create too much friction. The system should allow natural-language notes first and infer routing later.
 - If sync status is unclear, the user may start babysitting it. The UI needs clear states like saved locally, waiting to sync, synced, processed, and needs review.
 - If the agent silently changes Obsidian, mistakes may feel invasive. Auto-processing should be paired with clear desktop visibility and Git rollback.
-- Audio retention has tradeoffs: it preserves nuance and recovery options, but costs storage, sync time, privacy surface area, and transcription complexity.
 - The difference between "uncategorized because the agent is unsure" and "miscellaneous because the user wanted that" must be explicit.
 
 ## Near-Term Planning Tasks
 
 - Define the phone capture flow from app open to saved local item.
 - Define the desktop processing flow from synced capture to Obsidian write.
-- Decide the first-pass policy for audio storage and transfer.
 - Sketch the desktop companion interface, especially the processed activity feed, needs-review area, and Git rollback/status surface.
 - Research existing frameworks, apps, protocols, and libraries before building anything from scratch.
 - Choose a minimal architecture that is useful for one individual before optimizing for a polished public product.

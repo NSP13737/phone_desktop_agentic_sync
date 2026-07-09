@@ -16,11 +16,11 @@ React Native with Expo gives the project:
 
 - one app codebase for Android and iOS.
 - a TypeScript/React development model that should be approachable and easy to iterate on.
-- a broad ecosystem for audio capture, local files, permissions, storage, networking, and app packaging.
+- a broad ecosystem for storage, networking, permissions, camera access for QR pairing, and app packaging.
 - a path from early development to installable builds without switching frameworks.
-- the option to use custom native modules through Expo development builds when needed.
+- the option to use custom native modules through Expo development builds if future requirements need them.
 
-The main technical risk is local transcription, not the ordinary app UI. Because the app needs on-device transcription, the project should validate the audio and transcription path early.
+The MVP technical risk is ordinary mobile app reliability: local persistence, pairing, sync, and a fast editing experience.
 
 ## Expo Go, Development Builds, And Production Builds
 
@@ -36,8 +36,9 @@ Use Expo Go for:
 - simple app navigation.
 - basic local state experiments.
 - Expo-supported APIs that do not require custom native code.
+- early pairing and sync client exploration when the needed APIs are available.
 
-Do not rely on Expo Go as the final development environment for this project. Expo Go includes a fixed set of native modules, so it is unlikely to support the final local transcription stack.
+Expo Go may be enough for much of the typed-capture MVP. If a dependency requires native configuration that Expo Go does not include, move that work to a development build.
 
 ### Development Build
 
@@ -46,11 +47,10 @@ A development build is the project's own native app installed on the device with
 Use development builds once the app needs:
 
 - custom native modules.
-- realistic audio handling.
-- on-device transcription integration.
 - device behavior that should match the eventual installed app more closely.
+- native configuration that Expo Go cannot provide.
 
-For this project, development builds should be treated as the main development environment after the initial UI and feasibility experiments.
+Development builds are still a normal part of the Expo path, but they are no longer required up front just to prove the MVP input model.
 
 ### Production Build
 
@@ -79,27 +79,24 @@ iOS does not have an equally casual APK-style sharing path. For iOS, plan on Tes
 
 ## Implementation Guidance
 
-The app should keep device-specific capabilities behind small interfaces so the rest of the app is not coupled to Expo Go, development builds, or a specific native transcription package.
+The app should keep device-specific capabilities behind small interfaces so the rest of the app is not coupled to Expo Go, development builds, or a specific package.
 
 Important boundaries:
 
-- audio recording service.
-- temporary audio file service.
-- transcription queue.
-- transcription engine adapter.
 - local note storage.
 - desktop sync client.
+- desktop pairing client.
 
-The app should avoid placing transcription or file-system assumptions directly inside UI components. This keeps the codebase easier to adjust if the chosen transcription binding changes.
+The app should avoid placing storage or desktop-networking assumptions directly inside UI components.
 
 ## Early Technical Spike
 
-Before committing deeply to the UI, run a small feasibility spike that verifies:
+Before committing deeply to the full UI, run a small feasibility spike that verifies:
 
-- audio can be recorded on a physical Android device.
-- audio can be saved as temporary working data.
-- a local Whisper-family transcription path can be invoked from a React Native/Expo development build.
-- the transcription result can be inserted into local text state.
-- temporary audio can be deleted after successful transcription.
+- a note can be created and edited on a physical Android device.
+- note text can be saved locally and recovered after app backgrounding or restart.
+- QR pairing can provide desktop connection details.
+- the app can send a text payload to a local desktop companion endpoint.
+- the app can mark a note synced after desktop acknowledgement.
 
 If iOS support remains a serious target, the same spike should later be repeated on a physical iOS device.

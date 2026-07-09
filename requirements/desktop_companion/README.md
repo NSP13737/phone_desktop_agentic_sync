@@ -24,7 +24,7 @@ The desktop app needs more design work. Important surfaces likely include:
 - A processed feed showing what the agent did to Obsidian.
 - A needs-review area for captures the agent could not confidently categorize.
 - A Git/status area showing the latest commit, changed files, and rollback guidance.
-- A detail view for an individual capture, including original text/transcript, inferred intent, destination, and final Obsidian change.
+- A detail view for an individual capture, including original text, inferred intent, destination, and final Obsidian change.
 
 ## Git Integration
 

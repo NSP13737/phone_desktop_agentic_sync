@@ -2,12 +2,22 @@ While implementing this project, you should Not implement anything from total sc
 
 The goal is to create a simple tool for an individual rather than a polished project with its own unique codebase.
 
-Requirements live in the requirements dir. These should be held as ground truth. If you are deciding about something to implement and it is not in a requirements doc, you should first consult the user. If you change something with the user, you should update the proper requirements doc.
+Requirements live in the requirements dir. 
 
 If the requirements are not specific enough or are getting too long, maybe it is time to make a new requirements file/sub-file
 
 While implementing, please update `IMPLEMENTATION_PROGRESS.md` so that future agents know what has happened. Be very high level in your writing here, as there may be dozens of agents that write to this file, and it should just allow them to search where necessary instead of having to read every file.
 
+
+## User Context
+
+The Codex tool process may run as `root`, but repo commands should be run as the `agent` user when practical so generated files and dependency installs remain editable by the normal workspace owner. Prefer:
+
+`runuser -u agent -- <command>`
+
+For commands that need the repo as the working directory, use:
+
+`runuser -u agent -- bash -lc 'cd /home/agent/obsidian_notetaker && <command>'`
 
 ## Sandbox Notes
 
